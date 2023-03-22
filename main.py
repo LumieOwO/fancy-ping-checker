@@ -1,13 +1,15 @@
 import ssl
 import socket
 from threading import Thread
-import multiprocessing
+from multiprocessing import Process
 
-threads = 15
+MAX_THREADS = 500
+URL = ""
 
 
 class StressTester:
     def __init__(self, url):
+        self.counter = 0
         url_parts = url.split('://')
         self.protocol = url_parts[0]
         url_no_protocol = url_parts[1]
@@ -20,46 +22,46 @@ class StressTester:
         self.request = f"GET {path} HTTP/1.1\r\nHost: {self.host}\r\n\r\n"
 
     def start(self):
-        for i in range(threads):
-            Thread(target=self.send_requests).start()
+        try:
+            processes = []
+            for i in range(MAX_THREADS):
+                p = Process(target=self.send_requests)
+                processes.append(p)
+                p.start()
 
+            for p in processes:
+                p.join()
+        except KeyboardInterrupt:
+            print(self.counter)
+            exit()
     def send_requests(self):
-        inc = 0
-        sock, port = CreateHttpsSocket(
-            url=self.host, protocol=self.protocol).create_socket_obj()
-        sock.connect((self.host, port))
+        sock = self.create_socket()
+        sock.connect((self.host, self.port))
         sock.sendall(self.request.encode('utf-8'))
         while True:
-            print(inc)
             sock.sendall(self.request.encode('utf-8'))
-            inc += 1
-
-
-class CreateHttpsSocket:
-    def __init__(self, url: str, protocol: str):
-        self.url = url
-        self.protocol = protocol
-
-    def create_socket_obj(self):
+            self.counter += 1
+    def create_socket(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(30)
-        if self.get_port() == 443:
-            return ssl.create_default_context().wrap_socket(sock=sock, server_hostname=self.url), self.get_port()
-        elif self.get_port() == 80:
-            return sock, self.get_port()
+        if self.protocol == "https":
+            return ssl.create_default_context().wrap_socket(sock=sock, server_hostname=self.host)
+        elif self.protocol == "http":
+            return sock
         else:
-            exit()
+            raise ValueError("Unknown protocol scheme")
 
-    def get_port(self) -> int or str:
-        if self.protocol.split("://")[0] == "https":
+    @property
+    def port(self):
+        if self.protocol == "https":
             return 443
-        elif self.protocol.split("://")[0] == "http":
+        elif self.protocol == "http":
             return 80
         else:
-            return "unknown SCHEME"
+            raise ValueError("Unknown protocol scheme")
 
 
 if __name__ == "__main__":
-    url = ""
-    stress_tester = StressTester(url=url)
-    multiprocessing.Process(target=stress_tester.start()).start()
+    stress_tester = StressTester(url=URL)
+    stress_tester.start()
+    Process(target=stress_tester.start()).start()
