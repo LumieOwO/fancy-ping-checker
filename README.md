@@ -10,7 +10,7 @@ If the specified URL uses the HTTP protocol, the default port is 80. If the URL 
 Example usage:
 
 ```python
-from stress_tester import StressTester
+from main import StressTester
 
 if __name__ == "__main__":
     url = "https://www.example.com"
